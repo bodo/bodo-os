@@ -6,9 +6,15 @@ authors = [
     {name = "Kolja Sam",email = "github@koljapluemer.com"}
 ]
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.12,<4"
 dependencies = [
-    "django (>=5.2.7,<6.0.0)"
+    "django (>=5.2.7,<6.0.0)",
+    "djangorestframework (>=3.16.1,<4.0.0)",
+    "djangorestframework-simplejwt (>=5.5.1,<6.0.0)",
+    "django-environ (>=0.12.0,<0.13.0)",
+    "dj-database-url (>=3.0.1,<4.0.0)",
+    "psycopg[binary] (>=3.2.10,<4.0.0)",
+    "pillow (>=11.3.0,<12.0.0)"
 ]
 
 
