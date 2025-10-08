@@ -7,12 +7,13 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.generics import CreateAPIView
 from rest_framework.response import Response
 
+from accounts.models import UserProfile
+
 from .models import (
     LearningPath,
     LearningPathProgress,
     LearningPathStep,
     LearningPathStepProgress,
-    UserProfile,
 )
 from .serializers import (
     LearningPathProgressSerializer,

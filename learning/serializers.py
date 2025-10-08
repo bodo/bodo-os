@@ -6,13 +6,14 @@ from django.db import transaction
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
+from accounts.models import UserProfile
+
 from .models import (
     LearningPath,
     LearningPathProgress,
     LearningPathStep,
     LearningPathStepBlock,
     LearningPathStepProgress,
-    UserProfile,
 )
 
 
