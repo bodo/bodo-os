@@ -17,6 +17,13 @@ class LearningPath(TimeStampedModel):
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     is_public = models.BooleanField(default=False)
+    owner = models.ForeignKey(
+        UserProfile,
+        on_delete=models.SET_NULL,
+        related_name="owned_learning_paths",
+        null=True,
+        blank=True,
+    )
     assigned_profiles = models.ManyToManyField(
         UserProfile,
         through="LearningPathEnrollment",

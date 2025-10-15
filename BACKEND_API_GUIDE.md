@@ -28,6 +28,7 @@ Response body (201):
 ```
 
 Password must be ≥8 characters. A matching `UserProfile` is created automatically; missing profile is considered an error for other endpoints.
+Editorial flags (`can_create_learning_paths`, `can_manage_all_learning_paths`) default to `false` and can be toggled in Django admin.
 
 ### Obtain JWT `POST /api/auth/token/` _(public)_
 Authenticate with username & password to receive JWT credentials.
@@ -49,6 +50,26 @@ Response (200):
 ```
 
 Send the `access` token as `Authorization: Bearer ...` for protected requests.
+
+Additional fields are returned for convenience:
+
+```json
+{
+  "user": {
+    "id": 12,
+    "username": "alex",
+    "email": "alex@example.com"
+  },
+  "profile": {
+    "id": 7,
+    "display_name": "Alex Doe",
+    "can_create_learning_paths": false,
+    "can_manage_all_learning_paths": false
+  }
+}
+```
+
+The same permission flags are embedded inside the JWT as custom claims so the SPA can toggle editor UX without an extra request.
 
 ### Refresh JWT `POST /api/auth/token/refresh/`
 Request:
@@ -77,6 +98,7 @@ LearningPath {
   title: string
   description: string
   is_public: boolean
+  owner: number | null           // UserProfile ID
   steps: LearningPathStep[]
   created_at: string
   updated_at: string
@@ -104,7 +126,12 @@ LearningPathStepBlock {
 ```
 
 ### List Accessible Paths `GET /api/learning-paths/`
-Requires authentication. Returns public paths plus any private paths assigned to the current user.
+Requires authentication. Returns:
+
+- Public paths.
+- Private paths assigned to the current user.
+- Paths owned by the current user.
+- All paths when `can_manage_all_learning_paths` is true.
 
 ### Public Catalogue `GET /api/learning-paths/public/` _(public)_
 Returns every public learning path. Use this for landing pages or anonymous browsing.
@@ -116,7 +143,23 @@ Authenticated endpoint returning private paths explicitly assigned to the user.
 Authenticated endpoint that filters to learning paths where the user has begun or completed at least one step.
 
 ### Retrieve Path `GET /api/learning-paths/{id}/`
-Authenticated. Works for public paths or private paths the user is assigned to. Returns the nested structure described above.
+Authenticated. Works for:
+
+- Public paths.
+- Private paths assigned to the user.
+- Paths owned by the user.
+- Any path when `can_manage_all_learning_paths` is true.
+
+### Create Path `POST /api/learning-paths/`
+Requires authentication and either `can_create_learning_paths` or `can_manage_all_learning_paths`.
+
+The request body mirrors the serializer (currently `title`, `description`, `is_public`). `owner` is ignored by the API; it is automatically set to the authenticated user’s profile.
+
+### Update Path `PUT/PATCH /api/learning-paths/{id}/`
+Requires ownership of the target path or the global manage flag. Returns the full learning path representation.
+
+### Delete Path `DELETE /api/learning-paths/{id}/`
+Same permission rules as update. Returns `204 No Content` on success.
 
 ### Get Progress Snapshot `GET /api/learning-paths/{id}/progress/`
 Authenticated. Creates a `LearningPathProgress` record on-demand (if missing) and returns the user’s current status for the path.
@@ -188,7 +231,7 @@ Payload is identical to `POST`. Use to mark progress, update `last_step`, or set
 ## Error Handling
 
 - `401 Unauthorized`: missing/invalid JWT for protected endpoints.
-- `403 Forbidden`: authenticated but attempting to access a private path you are not assigned to, or the user profile is missing.
+- `403 Forbidden`: authenticated but lacking the required assignment/ownership/editor flag, or the user profile is missing.
 - `400 Bad Request`: validation errors (e.g., mismatched step IDs, missing password).
 
 Errors return the standard DRF error shape:

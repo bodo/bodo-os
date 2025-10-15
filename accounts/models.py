@@ -17,6 +17,8 @@ class UserProfile(TimeStampedModel):
         related_name="profile",
     )
     display_name = models.CharField(max_length=255, blank=True)
+    can_create_learning_paths = models.BooleanField(default=False)
+    can_manage_all_learning_paths = models.BooleanField(default=False)
 
     def __str__(self) -> str:
         return self.display_name or self.user.get_username()

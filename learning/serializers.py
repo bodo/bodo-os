@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import Any, Iterable
 
 from django.db import transaction
-from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
 from accounts.models import UserProfile
@@ -44,6 +43,7 @@ class LearningPathStepSerializer(serializers.ModelSerializer):
 
 class LearningPathSerializer(serializers.ModelSerializer):
     steps = LearningPathStepSerializer(many=True, read_only=True)
+    owner = serializers.PrimaryKeyRelatedField(read_only=True)
 
     class Meta:
         model = LearningPath
@@ -52,6 +52,7 @@ class LearningPathSerializer(serializers.ModelSerializer):
             "title",
             "description",
             "is_public",
+            "owner",
             "steps",
             "created_at",
             "updated_at",
@@ -206,32 +207,3 @@ class LearningPathProgressSerializer(serializers.ModelSerializer):
     def to_representation(self, instance: LearningPathProgress) -> dict[str, Any]:
         instance.ensure_all_step_progress_entries()
         return super().to_representation(instance)
-
-
-class RegistrationSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True, min_length=8)
-    display_name = serializers.CharField(
-        write_only=True, required=False, allow_blank=True
-    )
-
-    class Meta:
-        model = get_user_model()
-        fields = (
-            "id",
-            "username",
-            "email",
-            "password",
-            "display_name",
-        )
-        read_only_fields = ("id",)
-
-    def create(self, validated_data: dict[str, Any]):
-        display_name = validated_data.pop("display_name", "")
-        user_model = get_user_model()
-        user = user_model.objects.create_user(**validated_data)
-        if display_name:
-            profile = getattr(user, "profile", None)
-            if profile:
-                profile.display_name = display_name
-                profile.save(update_fields=["display_name", "updated_at"])
-        return user

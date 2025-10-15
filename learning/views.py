@@ -4,7 +4,6 @@ from django.db.models import Prefetch, Q
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
-from rest_framework.generics import CreateAPIView
 from rest_framework.response import Response
 
 from accounts.models import UserProfile
@@ -18,17 +17,19 @@ from .models import (
 from .serializers import (
     LearningPathProgressSerializer,
     LearningPathSerializer,
-    RegistrationSerializer,
 )
+from .permissions import CanManageLearningPaths
 
 
-class LearningPathViewSet(viewsets.ReadOnlyModelViewSet):
+class LearningPathViewSet(viewsets.ModelViewSet):
     serializer_class = LearningPathSerializer
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly, CanManageLearningPaths]
+    http_method_names = ["get", "post", "put", "patch", "delete", "head", "options"]
 
     def get_queryset(self):
         base_queryset = (
             LearningPath.objects.all()
+            .select_related("owner")
             .prefetch_related(
                 Prefetch(
                     "steps",
@@ -40,15 +41,23 @@ class LearningPathViewSet(viewsets.ReadOnlyModelViewSet):
             .order_by("title")
         )
 
-        if self.action == "retrieve":
+        user = self.request.user
+        if not user.is_authenticated:
+            return base_queryset.filter(is_public=True)
+
+        profile: UserProfile | None
+        try:
+            profile = user.profile
+        except UserProfile.DoesNotExist:
+            profile = None
+
+        if profile and profile.can_manage_all_learning_paths:
             return base_queryset
 
-        user = self.request.user
-        if user.is_authenticated:
-            return base_queryset.filter(
-                Q(is_public=True) | Q(assigned_profiles__user=user)
-            ).distinct()
-        return base_queryset.filter(is_public=True)
+        filters = Q(is_public=True) | Q(assigned_profiles__user=user)
+        if profile:
+            filters |= Q(owner=profile)
+        return base_queryset.filter(filters).distinct()
 
     def get_object(self):
         learning_path = super().get_object()
@@ -57,9 +66,18 @@ class LearningPathViewSet(viewsets.ReadOnlyModelViewSet):
             if not user.is_authenticated:
                 raise PermissionDenied("Authentication required.")
             profile = self._get_profile()
-            if not learning_path.assigned_profiles.filter(id=profile.id).exists():
-                raise PermissionDenied("You do not have access to this learning path.")
+            if (
+                learning_path.owner_id == profile.id
+                or profile.can_manage_all_learning_paths
+                or learning_path.assigned_profiles.filter(id=profile.id).exists()
+            ):
+                return learning_path
+            raise PermissionDenied("You do not have access to this learning path.")
         return learning_path
+
+    def perform_create(self, serializer):
+        profile = self._get_profile()
+        serializer.save(owner=profile)
 
     def _get_profile(self) -> UserProfile:
         try:
@@ -218,7 +236,3 @@ class LearningPathProgressViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         serializer.save()
 
-
-class RegistrationView(CreateAPIView):
-    serializer_class = RegistrationSerializer
-    permission_classes = [permissions.AllowAny]
